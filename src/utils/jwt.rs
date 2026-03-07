@@ -19,6 +19,7 @@ struct Header {
 }
 
 fn jwt_secret() -> Result<String, String> {
+    dotenvy::dotenv().ok();
     std::env::var("JWT_SECRET")
         .map_err(|_| "JWT_SECRET environment variable is required".to_string())
 }
