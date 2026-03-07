@@ -1,3 +1,4 @@
 #![allow(dead_code)]
 
-pub mod password_hasher;
+pub mod jwt;
+pub mod password;

@@ -6,11 +6,15 @@ edition = "2024"
 [dependencies]
 argon2 = "0.5.3"
 axum = "0.8.8"
+base64 = "0.22.1"
 chrono = { version = "0.4.44", features = ["serde"] }
+hmac = "0.12.1"
 jsonwebtoken = "10.3.0"
 rand = "0.10.0"
 rand_core = { version = "0.6.4", features = ["getrandom"] }
 serde = { version = "1.0.228", features = ["derive"] }
-sqlx = { version = "0.8.6", features = ["chrono", "uuid"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+sqlx = { version = "0.8.6", features = ["chrono", "uuid", "postgres", "macros", "runtime-tokio"] }
 tokio = { version = "1.50.0", features = ["full"] }
 uuid = { version = "1.22.0", features = ["serde"] }
