@@ -1,7 +1,12 @@
 use crate::handler::user::AuthUser;
 use crate::models::wallet::Wallet;
-use axum::{Json, extract::State, http::StatusCode};
+use axum::routing::get;
+use axum::{Json, Router, extract::State, http::StatusCode};
 use sqlx::{PgPool, Row};
+
+pub fn wallet_routes() -> Router<PgPool> {
+    Router::new().route("/", get(get_wallet))
+}
 
 pub async fn get_wallet(
     State(pool): State<PgPool>,

@@ -1,9 +1,12 @@
+use crate::error::AppError;
 use crate::handler::user::AuthUser;
 use crate::models::user::{LoginUser, RegisterUser};
 use crate::utils::jwt::create_jwt;
 use crate::utils::password::{hash_password, verify_password};
 
-use axum::{Json, extract::State, http::StatusCode};
+use axum::Router;
+use axum::routing::{get, post};
+use axum::{Json, extract::State};
 use chrono::Utc;
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
@@ -13,14 +16,24 @@ pub struct LoginResponse {
     token: String,
 }
 
+pub fn user_routes() -> Router<PgPool> {
+    Router::new()
+        .route("/register", post(register))
+        .route("/login", post(login))
+        .route("/me", get(me))
+}
+
 // ----------------- Register ------------------------
 pub async fn register(
     State(pool): State<PgPool>,
     Json(payload): Json<RegisterUser>,
-) -> Result<Json<String>, StatusCode> {
+) -> Result<Json<String>, AppError> {
     let password_hash = hash_password(&payload.password);
 
-    let user = sqlx::query(
+    // Use a transaction so both User and Wallet are created together
+    let mut tx = pool.begin().await?;
+
+    let row = sqlx::query(
         "INSERT INTO users (username, email, password_hash)
          VALUES ($1, $2, $3)
          RETURNING id",
@@ -28,19 +41,17 @@ pub async fn register(
     .bind(&payload.username)
     .bind(&payload.email)
     .bind(&password_hash)
-    .fetch_one(&pool)
-    .await
-    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    .fetch_one(&mut *tx) // Use the transaction
+    .await?;
 
-    let user_id: Uuid = user
-        .try_get("id")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id: Uuid = row.get("id");
 
     sqlx::query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)")
         .bind(&user_id)
-        .execute(&pool)
-        .await
-        .unwrap();
+        .execute(&mut *tx) // Use the transaction
+        .await?;
+
+    tx.commit().await?;
 
     Ok(Json(format!("User registered: {}", payload.username)))
 }
@@ -49,24 +60,22 @@ pub async fn register(
 pub async fn login(
     State(pool): State<PgPool>,
     Json(payload): Json<LoginUser>,
-) -> Result<Json<LoginResponse>, StatusCode> {
+) -> Result<Json<LoginResponse>, AppError> {
     let user = sqlx::query("SELECT id, password_hash FROM users WHERE email = $1")
         .bind(&payload.email)
         .fetch_optional(&pool)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .await?
+        .ok_or(AppError::Unauthorized(
+            "Invalid email or password".to_string(),
+        ))?;
 
-    let user = user.ok_or(StatusCode::UNAUTHORIZED)?;
-
-    let user_id: Uuid = user
-        .try_get("id")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    let password_hash: String = user
-        .try_get("password_hash")
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let user_id: Uuid = user.get("id");
+    let password_hash: String = user.get("password_hash");
 
     if !verify_password(&password_hash, &payload.password) {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(AppError::Unauthorized(
+            "Invalid email or password".to_string(),
+        ));
     }
 
     let exp = (Utc::now().timestamp() + 3600) as usize;
