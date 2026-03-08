@@ -29,10 +29,18 @@ async fn main() {
         .await
         .unwrap();
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    // 1. Get the PORT from .env
+    let port = std::env::var("PORT").expect("PORT environment variable is required");
 
-    //println!("server is sucefully start at port 3000");
-    tracing::info!("Server is starting on http://localhost:3000");
+    // 2. Format the address string correctly
+    let addr = format!("0.0.0.0:{}", port);
+
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .expect("Failed to bind to port");
+
+    // 3. Log the actual address being used
+    tracing::info!("Server is starting on http://{}", addr);
 
     let app = routes::endpoints::app(pool);
     axum::serve(listener, app).await.unwrap();

@@ -1,3 +1,4 @@
+use crate::routes::logs_route::log_routes;
 use crate::routes::product::product_routes;
 use crate::routes::user::user_routes;
 use crate::routes::wallet::wallet_routes;
@@ -8,12 +9,14 @@ use sqlx::PgPool;
 use tower::ServiceBuilder;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_http::trace::TraceLayer;
+
 pub fn app(pool: PgPool) -> Router {
     // 1. Define your main routes and provide state
     let api_routes = Router::new()
         .nest("/auth", user_routes())
         .nest("/wallet", wallet_routes())
         .nest("/products", product_routes())
+        .nest("/logs", log_routes())
         .fallback(handler_404)
         .with_state(pool);
 
